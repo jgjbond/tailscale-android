@@ -1,0 +1,34 @@
+<!-- bottom_sheet_layout.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Title TextView -->
+    <TextView
+        android:id="@+id/titleTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Bottom Sheet Title"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- Description TextView -->
+    <TextView
+        android:id="@+id/descriptionTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="This is a sample bottom sheet."
+        android:textSize="16sp"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- Example Button -->
+    <Button
+        android:id="@+id/exampleButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Click me"
+        android:onClick="onButtonClick"/>
+</LinearLayout>

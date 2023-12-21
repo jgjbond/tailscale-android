@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">Tailscale</string>
     <string name="tile_name">Tailscale</string>
+    <string name="titleTextView">HALLO</string>
 </resources>
