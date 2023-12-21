@@ -24,6 +24,7 @@ public final class StartVPNWorker extends Worker {
     }
 
     @Override public Result doWork() {
+        android.util.Log.d("StartVPNWorker", "doWork");
         App app = ((App)getApplicationContext());
 
         // We will start the VPN from the background

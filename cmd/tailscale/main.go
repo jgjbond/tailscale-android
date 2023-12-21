@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/sha1"
@@ -22,6 +23,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -38,11 +40,14 @@ import (
 	"tailscale.com/hostinfo"
 	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnlocal"
+	"tailscale.com/ipn/localapi"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/interfaces"
 	"tailscale.com/net/netns"
+	"tailscale.com/net/netutil"
 	"tailscale.com/paths"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/logger"
 	"tailscale.com/types/netmap"
 	"tailscale.com/wgengine/router"
 )
@@ -211,6 +216,7 @@ const releaseCertFingerprint = "86:9D:11:8B:63:1E:F8:35:C6:D9:C2:66:53:BC:28:22:
 var backendEvents = make(chan UIEvent)
 
 func main() {
+	log.Printf("KARI HELLO FROM GO")
 	a := &App{
 		jvm:           (*jni.JVM)(unsafe.Pointer(app.JavaVM())),
 		appCtx:        jni.Object(app.AppContext()),
@@ -248,6 +254,66 @@ func main() {
 	app.Main()
 }
 
+var tcpListener struct {
+	once sync.Once
+	ln   net.Listener
+}
+
+func initTCPPort() {
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		log.Printf("KARI failed to run localhost IPC server: %v", err)
+	}
+	tcpListener.ln = ln
+}
+
+// getTCPListener returns a TCP listener that serves the cmd/tailscale
+// CLI client and the localapi HTTP server.
+func getTCPListener() net.Listener {
+	log.Printf("KARI getTCPListener")
+	tcpListener.once.Do(initTCPPort)
+	return tcpListener.ln
+}
+
+// localhostTCPPort returns the port number of the listener as
+// returned by getTCPListener.
+func localhostTCPPort() int {
+	log.Printf("KARI localhostTCPPort + %v", getTCPListener().Addr().(*net.TCPAddr).Port)
+	return getTCPListener().Addr().(*net.TCPAddr).Port
+}
+
+// serveLocalIPC runs the TCP server for the cmd/tailscale
+// CLI client and the localapi HTTP server.
+func serveLocalIPC(b backend, ln net.Listener) {
+	log.Printf("kari serveLocalIPC")
+	defer ln.Close()
+	for {
+		c, err := ln.Accept()
+		if err != nil {
+			log.Printf("KARI serveLocalIPC: Accept: %v", err)
+			return
+		}
+		go serveIPCConnection(b, c)
+	}
+}
+
+func serveIPCConnection(b backend, c net.Conn) {
+	log.Printf("KARI serveIPCConnection")
+	br := bufio.NewReader(c)
+
+	h := localapi.NewHandler(b.backend, logger.RusagePrefixLog(log.Printf), b.netMon, b.logIDPublic)
+	h.PermitRead = true
+	h.PermitWrite = true
+	h.RequiredPassword = "password"
+	srv := &http.Server{Handler: h}
+	srv.Serve(netutil.NewOneConnListener(connWithAltReader{br, c}, nil))
+}
+
+type connWithAltReader struct {
+	r io.Reader
+	net.Conn
+}
+
 func (a *App) runBackend() error {
 	appDir, err := app.DataDir()
 	if err != nil {
@@ -278,8 +344,22 @@ func (a *App) runBackend() error {
 		return <-configErrs
 	})
 	if err != nil {
+		log.Printf("KARI THERE'S AN ERR")
 		return err
 	}
+	receivePortErr := jni.Do(a.jvm, func(env *jni.Env) error {
+		cls := jni.GetObjectClass(env, a.appCtx)
+		receivePort := jni.GetMethodID(env, cls, "receivePort", "(I)V")
+		return jni.CallVoidMethod(env, a.appCtx, receivePort, jni.Value(localhostTCPPort()))
+	})
+	if receivePortErr != nil {
+		return receivePortErr
+	}
+	go serveLocalIPC(*b, getTCPListener())
+	if connectErr := a.callVoidMethod(a.appCtx, "tryConnect", "()V"); connectErr != nil {
+		fatalErr(connectErr)
+	}
+
 	a.logIDPublicAtomic.Store(b.logIDPublic)
 	defer b.CloseTUNs()
 
