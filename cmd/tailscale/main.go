@@ -457,7 +457,6 @@ func (a *App) runBackend(ctx context.Context) error {
 				state.Prefs.ExitNodeAllowLANAccess = bool(e)
 				go b.backend.SetPrefs(state.Prefs)
 			case WebAuthEvent:
-				log.Printf("KARI WEBAUTHEVENT")
 				if !signingIn {
 					go a.login(ctx)
 					signingIn = true
@@ -475,11 +474,7 @@ func (a *App) runBackend(ctx context.Context) error {
 					}
 				}()
 			case LogoutEvent:
-				go func() {
-					ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-					defer cancel()
-					b.backend.Logout(ctx)
-				}()
+				go a.logout(ctx)
 			case ConnectEvent:
 				state.Prefs.WantRunning = e.Enable
 				go b.backend.SetPrefs(state.Prefs)
@@ -571,7 +566,7 @@ func (a *App) runBackend(ctx context.Context) error {
 }
 
 func (a *App) getBugReportID(ctx context.Context, bugReportChan chan<- string, fallbackLog string) {
-	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(2*time.Second))
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	r, err := a.localAPIClient.Call(ctx, "POST", "bugreport", nil)
 	defer r.Body().Close()
@@ -591,7 +586,7 @@ func (a *App) getBugReportID(ctx context.Context, bugReportChan chan<- string, f
 }
 
 func (a *App) login(ctx context.Context) {
-	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(2*time.Second))
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	r, err := a.localAPIClient.Call(ctx, "POST", "login-interactive", nil)
 	defer r.Body().Close()
@@ -600,6 +595,22 @@ func (a *App) login(ctx context.Context) {
 		log.Printf("login: %s", err)
 		a.backend.StartLoginInteractive()
 	}
+}
+
+func (a *App) logout(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	r, err := a.localAPIClient.Call(ctx, "POST", "logout", nil)
+	defer r.Body().Close()
+
+	if err != nil {
+		log.Printf("logout: %s", err)
+		logoutctx, logoutcancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer logoutcancel()
+		a.backend.Logout(logoutctx)
+	}
+
+	return err
 }
 
 func (a *App) processWaitingFiles(b *ipnlocal.LocalBackend) error {
