@@ -247,4 +247,8 @@
     <string name="notifications_delivered_when_user_interaction_is_required_to_establish_the_vpn_tunnel">Notifications delivered when user interaction is required to establish the VPN tunnel.</string>
     <string name="optional_notifications_which_display_the_status_of_the_vpn_tunnel">Optional notifications which display the status of the VPN tunnel.</string>
     <string name="notifications_delivered_when_a_file_is_received_using_taildrop">Notifications delivered when a file is received using Taildrop.</string>
+    <string name="enable_in_the_admin_console">Enable in the admin console</string>
+    <string name="mullvad_info_explainer">Once you enable Mullvad VPN on the admin console, you\'ll be able to encrypt and route your traffic using Mullvad’s global network of servers as exit nodes.</string>
+    <string name="mullvad_info_title">Mullvad VPN is not configured</string>
+    <string name="the_mullvad_vpn_logo">The Mullvad VPN logo</string>
 </resources>
